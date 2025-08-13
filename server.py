@@ -2,6 +2,8 @@ import socket
 import threading
 import time
 import psutil
+import sys
+import os
 
 # Comandos possíveis:
 # /help
@@ -22,6 +24,7 @@ import psutil
 # - Refatorar código para melhorar legibilidade e manutenção
 # - Implementar logs para monitorar atividades
 # - Implementar tratamento de erros
+# - Melhorar uso de threads
 
 # Funcoes helpers
 def validate_and_format_request(request, base_timer, base_mode, modes):
@@ -131,7 +134,7 @@ def handle_client(client_socket, client_address):
                 thread_tuple = remove_thread(id_to_remove)
                 if thread_tuple:
                     _, thread_obj, stop_event, _, _, _ = thread_tuple
-                    stop_event.set()  # sinaliza para a thread parar
+                    stop_event.set() 
                     client_socket.send(f"Stopped monitoring with id {id_to_remove}".encode("utf-8"))
                 else:
                     client_socket.send(f"No monitoring found with id {id_to_remove}".encode("utf-8"))
@@ -188,7 +191,6 @@ def cpu(client_socket, client_address, seconds, mode, stop_event):
 
 
 def start_server():
-    print()
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     host = ("localhost", 8000)
     max_connections = 5
@@ -202,5 +204,12 @@ def start_server():
         thread.start()
 
 
-if __name__ == "__main__":
-    start_server()
+if __name__ == '__main__':
+    try:
+        start_server()
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try:
+            sys.exit(130)
+        except SystemExit:
+            os._exit(130)
