@@ -10,18 +10,22 @@ def run_client():
     # establish connection with server
     client.connect((server_ip, server_port))
 
-    msg = input("Enter message: ")
-    client.send(msg.encode("utf-8")[:1024])
+    # msg = input("Enter message: ")
+    # client.send(msg.encode("utf-8")[:1024])
 
     while True:
+        msg = input("Enter message: ")
+        
+        # Check if user wants to exit before sending to server
+        if msg.lower() == "/exit":
+            client.send(msg.encode("utf-8")[:1024])
+            break
+            
+        client.send(msg.encode("utf-8")[:1024])
         # input message and send it to the server
         # receive message from the server
         response = client.recv(1024)
         response = response.decode("utf-8")
-
-        # if server sent us "closed" in the payload, we break out of the loop and close our socket
-        if response.lower() == "closed":
-            break
 
         print(f"Received: {response}")
 
