@@ -14,6 +14,15 @@ import psutil
 # -t=<seconds>; default=10 -> timer in seconds
 # -m=<basic/advanced>; default=basic -> mode
 
+
+# TODO
+# - Implementar a função de memória
+# - Implementar a escolha dos modos de monitoramento (básico ou avançado)
+# - Implementar POO
+# - Refatorar código para melhorar legibilidade e manutenção
+# - Implementar logs para monitorar atividades
+# - Implementar tratamento de erros
+
 # Funcoes helpers
 def validate_and_format_request(request, base_timer, base_mode, modes):
     if "-t=" in request:
@@ -110,6 +119,7 @@ def handle_client(client_socket, client_address):
                 "/cpu -t <seconds> -m <mode> - Start CPU monitoring\n"
                 "/mem -t <seconds> -m <mode> - Start Memory monitoring\n"
                 "/quit <id> - Stop monitoring by ID\n"
+                "/monitors - Show all monitoring views\n"
                 "Modes: basic, advanced\n"
             )
             client_socket.send(help_msg.encode("utf-8"))
@@ -129,10 +139,14 @@ def handle_client(client_socket, client_address):
                 client_socket.send("Invalid request format. Use /quit <id>".encode("utf-8"))
             continue
 
-        if request.lower() == "/threads":
-            print(index_map)
-            print(monitors)
-            client_socket.send("accepted".encode("utf-8"))
+        if request.lower() == "/monitors":
+            msg = f"You are monitoring {len(monitors)} threads."
+            for id in index_map:
+                thread_tuple = get_thread(id)
+                if thread_tuple:
+                    _, _, _, type_, timer, mode = thread_tuple
+                    msg += f"\nID: {id}, Type: {type_}, Interval: {timer}s, Mode: {modes[mode]}"
+            client_socket.send(msg.encode("utf-8"))
             continue
 
         print(f"Received from {client_address}: {request}")
