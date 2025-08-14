@@ -1,4 +1,19 @@
 import socket
+import threading
+
+def handle_response(client, stop_event):
+    while not stop_event.is_set():
+        try:
+            response = client.recv(1024)
+            if not response:
+                print("Server closed the connection.")
+                stop_event.set()
+                break
+            response = response.decode("utf-8")
+            print(f"Received: {response}")
+        except Exception as e:
+            print(f"Error receiving data: {e}")
+            break
 
 
 def run_client():
@@ -12,25 +27,33 @@ def run_client():
 
     # msg = input("Enter message: ")
     # client.send(msg.encode("utf-8")[:1024])
+    
+    stop_event = threading.Event()
+    receiver_thread = threading.Thread(target=handle_response, args=(client, stop_event))
+    receiver_thread.start()
 
-    while True:
-        msg = input("Enter message: ")
-        
-        # Check if user wants to exit before sending to server
-        if msg.lower() == "/exit":
-            client.send(msg.encode("utf-8")[:1024])
-            break
+    try:
+        while True:
+            msg = input("Enter message: ")
             
-        client.send(msg.encode("utf-8")[:1024])
-        # input message and send it to the server
-        # receive message from the server
-        response = client.recv(1024)
-        response = response.decode("utf-8")
-
-        print(f"Received: {response}")
-
+            if msg == "":
+                continue
+            
+            client.send(msg.encode("utf-8")[:1024])
+                
+            # Check if user wants to exit before sending to server
+            if msg.lower() == "/exit":
+                client.send(msg.encode("utf-8")[:1024])
+                break
+    except KeyboardInterrupt:
+        print("interrupted by user")
+    finally:
+        stop_event.set()
+        client.close()
+    
+    receiver_thread.join()
     # close client socket (connection to the server)
-    client.close()
     print("Connection to server closed")
-
+    
+    
 run_client()
