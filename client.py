@@ -1,6 +1,7 @@
 import socket
 import threading
-
+import sys
+import os
 def handle_response(client, stop_event):
     while not stop_event.is_set():
         try:
@@ -8,6 +9,10 @@ def handle_response(client, stop_event):
             if not response:
                 print("Server closed the connection.")
                 stop_event.set()
+                try:
+                    sys.exit(130)
+                except SystemExit:
+                    os._exit(130)
                 break
             response = response.decode("utf-8")
             print(f"Received: {response}")
