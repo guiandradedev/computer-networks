@@ -2,8 +2,7 @@ import socket
 import threading
 import time
 import psutil
-import sys
-import os
+from datetime import datetime
 
 class Server:
     def __init__(self, host='0.0.0.0', port=8000):
@@ -14,6 +13,27 @@ class Server:
         self.running = True
         self.lock = threading.Lock()
         self.modes = ["basic", "advanced"]
+
+    def create_thread(self, target, args, stop_event=True):
+        stop_event = threading.Event()
+        if stop_event:
+            args = args + (stop_event,)
+        thread = threading.Thread(target=target, args=args)
+        thread.daemon = True
+        thread.start()
+
+    def help(self):
+        help_msg = (
+                    "Available commands:\n"
+                    "/help - Show this help message\n"
+                    "/exit - Close the connection\n"
+                    "/cpu -t <seconds> -m <mode> - Start CPU monitoring\n"
+                    "/mem -t <seconds> -m <mode> - Start Memory monitoring\n"
+                    "/quit <id> - Stop monitoring by ID\n"
+                    "/monitors - Show all monitoring views\n"
+                    "Modes: basic, advanced\n"
+                )
+        return help_msg
 
     def _validate_and_format_request(self, request, base_timer, base_mode):
         if "-t=" in request:
@@ -35,111 +55,60 @@ class Server:
         return timer, mode
     
     def handle_client(self, client_socket, client_address):
-        print(f"Accepted connection from {client_address[0]}:{client_address[1]}")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Accepted connection from {client_address[0]}:{client_address[1]}")
 
-        monitors = []
-        index_map = {}
-        monitor_id = 1
-
-        def add_thread(id_, thread, stop_event, type_, timer, mode):
-            monitors.append((id_, thread, stop_event, type_, timer, mode))
-            index_map[id_] = len(monitors) - 1
-
-        def get_thread(id_):
-            idx = index_map.get(id_)
-            return monitors[idx] if idx is not None else None
-
-        def remove_thread(id_):
-            idx = index_map.pop(id_, None)
-            thread_tuple = monitors[idx] if idx is not None else None
-            if idx is not None:
-                monitors[idx] = None  # marca como removido
-            return thread_tuple
-
-        timer = 10
-        mode = 0
-
-        while True:
+        while self.running:
             try:
                 request = client_socket.recv(1024).decode("utf-8")
+                # Caso não haja requisição, encerra a conexão
                 if not request:
                     break
 
+                # Comandos fixos sem parâmetros
                 if request.lower() == "/exit":
                     client_socket.send("Connection ended".encode("utf-8"))
                     break
 
-                if request.lower().startswith("/cpu"):
-                    try:
-                        timer, mode = self._validate_and_format_request(request, timer, mode)
-                    except ValueError as e:
-                        client_socket.send(f"Invalid request: {e}".encode("utf-8"))
-                        continue
-
-                    stop_event = threading.Event()
-                    thread = threading.Thread(target=self.cpu, args=(client_socket, client_address, timer, mode, stop_event))
-                    add_thread(monitor_id, thread, stop_event, "cpu", timer, mode)
-                    thread.daemon = True
-                    thread.start()
-                    monitor_id += 1
-                    continue
-
-                if request.lower().startswith("/mem"):
-                    try:
-                        timer, mode = self._validate_and_format_request(request, timer, mode)
-                    except ValueError as e:
-                        client_socket.send(f"Invalid request: {e}".encode("utf-8"))
-                        continue
-                    
-                    print(f"Starting Memory monitoring with id {monitor_id} for {client_address} every {timer} seconds in {self.modes[mode]} mode.")
-                    stop_event = threading.Event()
-                    thread = threading.Thread(target=self.mem, args=(client_socket, client_address, timer, mode, stop_event))
-                    add_thread(monitor_id, thread, stop_event, "mem", timer, mode)
-                    thread.daemon = True
-                    thread.start()
-                    monitor_id += 1
-                    continue
-
+                if request.lower() == "/monitors":
+                    # with self.lock:
+                    #     monitors = "\n".join([f"{id}: {info['type']} - {info['mode']}" for id, info in self._clients.items()])
+                    #     client_socket.send(monitors.encode("utf-8"))
+                    # continue
+                    client_socket.send("No active monitors.".encode("utf-8"))
+                
                 if request.lower() == "/help":
-                    help_msg = (
-                        "Available commands:\n"
-                        "/help - Show this help message\n"
-                        "/exit - Close the connection\n"
-                        "/cpu -t <seconds> -m <mode> - Start CPU monitoring\n"
-                        "/mem -t <seconds> -m <mode> - Start Memory monitoring\n"
-                        "/quit <id> - Stop monitoring by ID\n"
-                        "/monitors - Show all monitoring views\n"
-                        "Modes: basic, advanced\n"
-                    )
+                    help_msg = self.help()
                     client_socket.send(help_msg.encode("utf-8"))
                     continue
 
-                if request.lower().startswith("/quit"):
+                # Comandos com parâmetros
+                req = request.strip()
+
+                if req.lower().startswith("/cpu"):
                     try:
-                        id_to_remove = int(request.split(" ")[1])
-                        thread_tuple = remove_thread(id_to_remove)
-                        if thread_tuple:
-                            _, thread_obj, stop_event, _, _, _ = thread_tuple
-                            stop_event.set() 
-                            client_socket.send(f"Stopped monitoring with id {id_to_remove}".encode("utf-8"))
-                        else:
-                            client_socket.send(f"No monitoring found with id {id_to_remove}".encode("utf-8"))
-                    except (ValueError, IndexError):
-                        client_socket.send("Invalid request format. Use /quit <id>".encode("utf-8"))
+                        timer, mode = self._validate_and_format_request(req, 5, 0)
+                    except ValueError as e:
+                        client_socket.send(f"Error: {e}".encode("utf-8"))
+                        continue
+                    
+                    print(f"Starting CPU monitoring for {client_address} every {timer} seconds in {self.modes[mode]} mode.")
+                    self.create_thread(target=self.cpu, args=(client_socket, client_address, timer, mode))
                     continue
-
-                if request.lower() == "/monitors":
-                    msg = f"You are monitoring {len([m for m in monitors if m is not None])} threads."
-                    for id in index_map:
-                        thread_tuple = get_thread(id)
-                        if thread_tuple:
-                            _, _, _, type_, timer, mode = thread_tuple
-                            msg += f"\nID: {id}, Type: {type_}, Interval: {timer}s, Mode: {self.modes[mode]}"
-                    client_socket.send(msg.encode("utf-8"))
+                
+                elif req.lower().startswith("/mem"):
+                    try:
+                        timer, mode = self._validate_and_format_request(req, 5, 0)
+                    except ValueError as e:
+                        client_socket.send(f"Error: {e}".encode("utf-8"))
+                        continue
+                    
+                    print(f"Starting Memory monitoring for {client_address} every {timer} seconds in {self.modes[mode]} mode.")
+                    self.create_thread(target=self.mem, args=(client_socket, client_address, timer, mode))
                     continue
-
-                print(f"Received from {client_address}: {request}")
-                client_socket.send("Error: Invalid command, try use /help to see the list of available commands.".encode("utf-8"))
+                
+                else:
+                    client_socket.send("Unknown command. Use /help to see available commands.".encode("utf-8"))
+                    continue
 
             except Exception as e:
                 print(f"Error handling client {client_address}: {e}")
