@@ -1,8 +1,22 @@
 import socket
 import threading
 import time
+from urllib import response
 import psutil
 from datetime import datetime
+from typing import Literal
+import json
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class Server:
     def __init__(self, host='0.0.0.0', port=8000):
@@ -15,7 +29,27 @@ class Server:
         self.modes = ["basic", "advanced"]
 
         self.timer = 10
-        self.mode = 1
+        self.mode = 0
+
+    def send_message(self, client_socket, message, status: Literal["info", "warning", "error", "success"]):
+        """
+        Padroniza o formato de envio de mensagens JSON para o socket.
+
+        :param client_socket: O socket do cliente.
+        :type client_socket: socket.socket
+        :param message: A mensagem a ser enviada.
+        :type message: str
+        :param status: O status da mensagem ('info', 'warning', 'error', 'success').
+        :type status: str
+        """
+        if status not in {"info", "warning", "error", "success"}:
+            raise ValueError("status deve ser 'info', 'warning', 'error' ou 'success'")
+
+        try:
+            response = json.dumps({"status": status, "message": message})
+            client_socket.send(response.encode("utf-8"))
+        except Exception as e:
+            print(f"{bcolors.FAIL}Error sending message to {client_socket.getpeername()}: {e}{bcolors.ENDC}")
 
     def create_thread(self, target, args, stop_event):
         full_args = args + (stop_event,)
@@ -46,7 +80,7 @@ class Server:
                 raise ValueError("Value must be an integer.")
             timer = int(input_timer)
         else:
-            timer = self.base_time
+            timer = self.timer
 
         if "-m=" in request:
             mode_string = request.split("-m=")[1].split(" ")[0]
@@ -54,9 +88,22 @@ class Server:
                 raise ValueError(f"Mode must be in {self.modes}.")
             mode = self.modes.index(mode_string)
         else:
-            mode = self.base_mode
+            mode = self.mode
 
         return timer, mode
+    
+    def monitors(self, client_id, client_socket, client_address):
+        client_monitors = self._clients.get(client_id, {}).get("monitor", {})
+        if not client_monitors:
+            return False, "No active monitors."
+            
+        monitors_list = [
+            f" - {id}: {info['type']} in '{self.modes[info['mode']]}' mode"
+            for id, info in client_monitors.items()
+        ]
+        response = "Active monitors:\n" + "\n".join(monitors_list)
+        return True, response
+
     
     def handle_client(self, client_socket, client_address):
         client_id = f"{client_address[0]}:{client_address[1]}"
@@ -84,22 +131,15 @@ class Server:
                         break
 
                     elif request.lower() == "/monitors":
-                        with self.lock:
-                            client_monitors = self._clients.get(client_id, {}).get("monitor", {})
-                            if not client_monitors:
-                                client_socket.send("No active monitors.".encode("utf-8"))
-                                continue
-                                
-                            monitors_list = [
-                                f" - {id}: {info['type']} in '{self.modes[info['mode']]}' mode"
-                                for id, info in client_monitors.items()
-                            ]
-                            response = "Active monitors:\n" + "\n".join(monitors_list)
-                            client_socket.send(response.encode("utf-8"))
-                    
+                        success, response = self.monitors(client_id, client_socket, client_address)
+                        if not success:
+                            self.send_message(client_socket, response, "error")
+                        else:
+                            self.send_message(client_socket, response, "info")
+                        continue
+
                     elif request.lower() == "/help":
-                        help_msg = self.help()
-                        client_socket.send(help_msg.encode("utf-8"))
+                        self.send_message(client_socket, self.help(), "info")
                         continue
                     
                     elif req.lower().startswith("/cpu") or req.lower().startswith("/mem"):
@@ -110,7 +150,7 @@ class Server:
                         try:
                             timer, mode = self._validate_and_format_request(req)
                         except ValueError as e:
-                            client_socket.send(f"Error: {e}".encode("utf-8"))
+                            self.send_message(client_socket, e, "error")
                             continue
 
                         stop_event = threading.Event()
@@ -123,7 +163,7 @@ class Server:
 
                         with self.lock:
                             client_data = self._clients[client_id]
-                            task_id = f"{client_data["monitors_count"]}"
+                            task_id = f"{client_data['monitors_count']}"
                             client_data["monitors_count"] += 1
 
                             client_data["monitor"][task_id] = {
@@ -134,13 +174,13 @@ class Server:
                             }
 
                         print(f"Starting {monitor_type} monitoring ({task_id}) for {client_id}")
-                        client_socket.send(f"{monitor_type} monitoring started with ID: {task_id}".encode("utf-8"))
+                        self.send_message(client_socket, f"{monitor_type} monitoring started with ID: {task_id}", "success")
                         
                     elif req.lower().startswith("/quit"):
                         try:
                             task_id_to_quit = req.split(" ")[1]
                         except IndexError:
-                            client_socket.send("Error: Please specify a monitor ID to quit.".encode("utf-8"))
+                            self.send_message(client_socket, "Please specify a monitor ID to quit.", "error")
                             continue
                         
                         with self.lock:
@@ -148,20 +188,20 @@ class Server:
                             if monitor_to_quit:
                                 monitor_to_quit["stop_event"].set()
                                 del self._clients[client_id]["monitor"][task_id_to_quit]
-                                client_socket.send(f"Monitor {task_id_to_quit} stopped.".encode("utf-8"))
+                                self.send_message(client_socket, f"Stopped monitoring ({task_id_to_quit}) for {client_id}", "success")
                                 print(f"Stopped monitoring ({task_id_to_quit}) for {client_id}")
                             else:
                                 client_socket.send(f"Error: Monitor ID '{task_id_to_quit}' not found.".encode("utf-8"))
 
                     else:
-                        client_socket.send("Unknown command. Use /help to see available commands.".encode("utf-8"))
+                        self.send_message(client_socket, "Unknown command. Use /help to see available commands.", "error")
                         continue
 
                 except Exception as e:
-                    print(f"Error handling client {client_address}: {e}")
+                    print(f"{bcolors.FAIL}Error handling client {client_address}: {bcolors.OKBLUE}{e}{bcolors.ENDC}")
                     break
         finally:
-            print(f"Cleaning up thread and memory for {client_id}")
+            print(f"{bcolors.OKBLUE}Cleaning up thread and memory for {client_id}{bcolors.ENDC}")
             with self.lock:
                 if client_id in self._clients:
                     for task_id, monitor_info in self._clients[client_id]["monitor"].items():
@@ -175,17 +215,27 @@ class Server:
     def mem(self, client_socket, seconds, mode, stop_event):
         while not stop_event.is_set():
             mem = psutil.virtual_memory()
+            swap = psutil.swap_memory()
             msg_lines = []
             msg_lines.append(f"💾 Memory Usage: {mem.percent:.1f}%")
             msg_lines.append(f"📊 Available: {mem.available / (1024**3):.2f} GB")
             msg_lines.append(f"📈 Used: {mem.used / (1024**3):.2f} GB")
             msg_lines.append(f"📉 Free: {mem.free / (1024**3):.2f} GB")
             
+            if mode == 1:  # advanced
+                msg_lines.append(f"🔄 Swap Usage: {swap.percent:.1f}%")
+                msg_lines.append(f"↔️ Swap Total: {swap.total / (1024**3):.2f} GB")
+                msg_lines.append(f"⬆️ Swap Used: {swap.used / (1024**3):.2f} GB")
+                msg_lines.append(f"⬇️ Swap Free: {swap.free / (1024**3):.2f} GB")
+                msg_lines.append(f"🧠 Buffers: {getattr(mem, 'buffers', 0) / (1024**2):.2f} MB")
+                msg_lines.append(f"🗄️ Cached: {getattr(mem, 'cached', 0) / (1024**2):.2f} MB")
+                msg_lines.append(f"🔁 Shared: {getattr(mem, 'shared', 0) / (1024**2):.2f} MB")
+
             try:
-                client_socket.send("\n".join(msg_lines).encode("utf-8"))
+                self.send_message(client_socket, "\n".join(msg_lines), status="info")
             except:
                 break
-            
+
             time.sleep(seconds)
 
     def cpu(self, client_socket, seconds, mode, stop_event):
@@ -197,7 +247,7 @@ class Server:
             msg_lines = []
             msg_lines.append(f"📊 CPU Usage: {cpu_percent:.1f}%")
             
-            if mode == 1:  # advanced mode
+            if mode == 1:  # advanced
                 msg_lines.append("🖥️  CPU Times per Core:")
                 for i, core_time in enumerate(cpu_times_per_core, start=1):
                     msg_lines.append(
@@ -211,7 +261,7 @@ class Server:
                 )
 
             try:
-                client_socket.send("\n".join(msg_lines).encode("utf-8"))
+                self.send_message(client_socket, "\n".join(msg_lines), status="info")
             except:
                 break
 
@@ -238,7 +288,7 @@ class Server:
         self._server.close()
         print("Server stopped")
 
-if __name__ == '__main__':
+if __name__ == '__main__': 
     server = Server()
     try:
         server.start()
