@@ -18,7 +18,7 @@ class bcolors:
 def handle_response(client, stop_event):
     while not stop_event.is_set():
         try:
-            response = client.recv(1024)
+            response = client.recv(4096)
             if not response:
                 print("Server closed the connection.")
                 stop_event.set()
@@ -54,17 +54,12 @@ def handle_response(client, stop_event):
 
 
 def run_client():
-    # create a socket object
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    server_ip = "127.0.0.1"  # replace with the server's IP address
-    server_port = 8000  # replace with the server's port number
-    # establish connection with server
+    server_ip = "127.0.0.1"
+    server_port = 8000
     client.connect((server_ip, server_port))
 
-    # msg = input("Enter message: ")
-    # client.send(msg.encode("utf-8")[:1024])
-    
     stop_event = threading.Event()
     receiver_thread = threading.Thread(target=handle_response, args=(client, stop_event))
     receiver_thread.start()
@@ -89,7 +84,6 @@ def run_client():
         client.close()
     
     receiver_thread.join()
-    # close client socket (connection to the server)
     print("Connection to server closed")
     
     
