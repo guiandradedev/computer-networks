@@ -4,7 +4,7 @@ import sys
 import os
 import json
 
-class bcolors:
+class Colors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
@@ -15,76 +15,118 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def handle_response(client, stop_event):
-    while not stop_event.is_set():
+class Client:
+    def __init__(self, host='127.0.0.1', port=8000):
+        self.host = host
+        self.port = port
+        self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._is_connected = False
+        
+    def start(self):
         try:
-            response = client.recv(4096)
-            if not response:
-                print("Server closed the connection.")
-                stop_event.set()
-                try:
-                    sys.exit(130)
-                except SystemExit:
-                    os._exit(130)
-                break
-            response = response.decode("utf-8")
-            try:
-                response_json = json.loads(response)
-                if isinstance(response_json, dict):
-                    status = response_json.get("status", "error")
-                    message = response_json.get("message", "")
-                    if status == "info":
-                        print(f"Server > {message}")
-                    elif status == "warning":
-                        print(f"{bcolors.WARNING}Server > {message}{bcolors.ENDC}")
-                    elif status == "error":
-                        print(f"{bcolors.FAIL}Server > {message}{bcolors.ENDC}")
-                    elif status == "success":
-                        print(f"{bcolors.OKBLUE}Server > {message}{bcolors.ENDC}")
-                    else:
-                        print(f"{bcolors.UNDERLINE}Server > {message}{bcolors.ENDC}")
-                else:
-                    print(f"Recebido: {response_json}")
-            except json.JSONDecodeError:
-                # Caso não seja JSON, imprime a mensagem bruta
-                print(f"Recebido: {response}")
+            host = (self.host, self.port)
+            self._client.connect(host)
+            self._is_connected = True
+            print(f"Connected to {self.host}:{self.port}")
         except Exception as e:
-            print(f"Error receiving data: {e}")
-            break
+            print(f"Failed to connect: {e}")
+            return
 
+        self._stop_event = threading.Event()
+        self._receiver_thread = threading.Thread(target=self.handle_response)
+        self._receiver_thread.start()
 
-def run_client():
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.run_client()
 
-    server_ip = "127.0.0.1"
-    server_port = 8000
-    client.connect((server_ip, server_port))
+    def send_message(self, message):
+        if not self._is_connected:
+            print("Not connected to server")
+            return False
+        
+        try:
+            self._client.send(message.encode("utf-8")[:1024])
+        except Exception as e:
+            print(f"Error sending message: {e}")
 
-    stop_event = threading.Event()
-    receiver_thread = threading.Thread(target=handle_response, args=(client, stop_event))
-    receiver_thread.start()
+    def close_connection(self):
+        # Finaliza conexão em caso de erro ou disconnect
+        self._stop_event.set()
+        self._is_connected = False
 
-    try:
-        while True:
-            msg = input("Enter message: ")
-            
-            if msg == "":
-                continue
-            
-            client.send(msg.encode("utf-8")[:1024])
-                
-            # Check if user wants to exit before sending to server
-            if msg.lower() == "/exit":
-                client.send(msg.encode("utf-8")[:1024])
+        # Caso seja disconnect, finaliza o socket e a thread
+        if self._client:
+            try:
+                self._client.close()
+            except:
+                pass
+        
+        if self._receiver_thread and self._receiver_thread.is_alive():
+            self._receiver_thread.join(timeout=2)
+
+        try:
+            sys.exit(130)
+        except SystemExit:
+            os._exit(130)
+
+    def handle_response(self):
+        while not self._stop_event.is_set() and self._is_connected:
+            try:
+                response = self._client.recv(4096)
+                if not response:
+                    print("Server closed the connection.")
+                    self.close_connection()
+                    
+                response = response.decode("utf-8")
+                try:
+                    response_json = json.loads(response)
+                    if isinstance(response_json, dict):
+                        status = response_json.get("status", "error")
+                        message = response_json.get("message", "")
+                        if status == "info":
+                            print(f"Server > {message}")
+                        elif status == "warning":
+                            print(f"{Colors.WARNING}Server > {message}{Colors.ENDC}")
+                        elif status == "error":
+                            print(f"{Colors.FAIL}Server > {message}{Colors.ENDC}")
+                        elif status == "success":
+                            print(f"{Colors.OKBLUE}Server > {message}{Colors.ENDC}")
+                        else:
+                            print(f"{Colors.UNDERLINE}Server > {message}{Colors.ENDC}")
+                    else:
+                        print(f"Recebido: {response_json}")
+                except json.JSONDecodeError:
+                    # Caso não seja JSON, imprime a mensagem bruta
+                    print(f"Recebido: {response}")
+            except Exception as e:
+                print(f"Error receiving data: {e}")
                 break
+
+
+    def run_client(self):
+        try:
+            while self._is_connected:
+                msg = input("Enter message: ")
+                
+                if msg == "":
+                    continue
+                
+                self.send_message(msg)
+                    
+                if msg.lower() == "/exit":
+                    break
+
+        except KeyboardInterrupt:
+            print("interrupted by user")
+        finally:
+            self._stop_event.set()
+            self._client.close()
+        
+        self._receiver_thread.join()
+        print("Connection to server closed")
+
+if __name__ == '__main__': 
+    client = Client()
+    try:
+        client.start()
     except KeyboardInterrupt:
-        print("interrupted by user")
-    finally:
-        stop_event.set()
-        client.close()
-    
-    receiver_thread.join()
-    print("Connection to server closed")
-    
-    
-run_client()
+        print('\nInterrupted')

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Literal
 import json
 
-class bcolors:
+class Colors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
@@ -49,7 +49,7 @@ class Server:
             response = json.dumps({"status": status, "message": message})
             client_socket.send(response.encode("utf-8"))
         except Exception as e:
-            print(f"{bcolors.FAIL}Error sending message to {client_socket.getpeername()}: {e}{bcolors.ENDC}")
+            print(f"{Colors.FAIL}Error sending message to {client_socket.getpeername()}: {e}{Colors.ENDC}")
 
     def create_thread(self, target, args, stop_event):
         full_args = args + (stop_event,)
@@ -198,10 +198,10 @@ class Server:
                         continue
 
                 except Exception as e:
-                    print(f"{bcolors.FAIL}Error handling client {client_address}: {bcolors.OKBLUE}{e}{bcolors.ENDC}")
+                    print(f"{Colors.FAIL}Error handling client {client_address}: {Colors.OKBLUE}{e}{Colors.ENDC}")
                     break
         finally:
-            print(f"{bcolors.OKBLUE}Cleaning up thread and memory for {client_id}{bcolors.ENDC}")
+            print(f"{Colors.OKBLUE}Cleaning up thread and memory for {client_id}{Colors.ENDC}")
             with self.lock:
                 if client_id in self._clients:
                     for task_id, monitor_info in self._clients[client_id]["monitor"].items():
