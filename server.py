@@ -8,6 +8,7 @@ from typing import Literal
 import json
 
 class Colors:
+    # Classe utilitária para cores no terminal
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
@@ -19,7 +20,11 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 class Server:
+    """
+    Classe principal do servidor, responsável por gerenciar conexões, comandos e monitoramentos.
+    """
     def __init__(self, host='0.0.0.0', port=8000):
+        # Inicializa o servidor com host, porta e variáveis de controle
         self.host = host
         self.port = port
         self._clients = {}  # dicionário para armazenar informações dos clientes e suas threads/monitors ativas
@@ -52,6 +57,9 @@ class Server:
             print(f"{Colors.FAIL}Error sending message to {client_socket.getpeername()}: {e}{Colors.ENDC}")
 
     def create_thread(self, target, args, stop_event):
+        """
+        Cria e inicia uma thread para monitoramento.
+        """
         full_args = args + (stop_event,)
         
         thread = threading.Thread(target=target, args=full_args)
@@ -61,6 +69,9 @@ class Server:
         return thread
 
     def help(self):
+        """
+        Retorna a mensagem de ajuda com os comandos disponíveis.
+        """
         help_msg = (
                     "Available commands:\n"
                     "/help - Show this help message\n"
@@ -74,6 +85,11 @@ class Server:
         return help_msg
 
     def _validate_and_format_request(self, request):
+        """
+        Valida e extrai os parâmetros de tempo e modo de um comando recebido.
+        :param request: O comando recebido do cliente.
+        :type request: str
+        """
         if "-t=" in request:
             input_timer = request.split("-t=")[1].split(" ")[0]
             if not input_timer.isdigit():
@@ -93,6 +109,15 @@ class Server:
         return timer, mode
     
     def monitors(self, client_id, client_socket, client_address):
+        """
+        Retorna a lista de monitores ativos para o cliente.
+        :param client_id: O ID do cliente.
+        :type client_id: str
+        :param client_socket: O socket do cliente.
+        :type client_socket: socket.socket
+        :param client_address: O endereço do cliente.
+        :type client_address: tuple
+        """
         client_monitors = self._clients.get(client_id, {}).get("monitor", {})
         if not client_monitors:
             return False, "No active monitors."
@@ -106,6 +131,13 @@ class Server:
 
     
     def handle_client(self, client_socket, client_address):
+        """
+        Função principal de atendimento ao cliente. Processa comandos e gerencia monitores.
+        :param client_socket: O socket do cliente.
+        :type client_socket: socket.socket
+        :param client_address: O endereço do cliente.
+        :type client_address: tuple
+        """
         client_id = f"{client_address[0]}:{client_address[1]}"
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Accepted connection from {client_address[0]}:{client_address[1]}")
         
@@ -115,22 +147,27 @@ class Server:
                 "monitors_count": 0
             }
         try:
+            # Loop principal de atendimento ao cliente
             while self.running:
                 try:
+                    # Recebe comando do cliente
                     request = client_socket.recv(1024).decode("utf-8")
                     # Caso não haja requisição, encerra a conexão
                     if not request:
+                        # Se não houver comando, encerra a conexão
                         break
 
                     # Separa a requisição por espaços
-                    req = request.strip(" ")
+                    req = request.strip(" ")  # Remove espaços extras
 
                     # Comandos fixos sem parâmetros
                     if request.lower() == "/exit":
+                        # Encerra a conexão com o cliente
                         client_socket.send("Connection ended".encode("utf-8"))
                         break
 
                     elif request.lower() == "/monitors":
+                        # Lista monitores ativos
                         success, response = self.monitors(client_id, client_socket, client_address)
                         if not success:
                             self.send_message(client_socket, response, "error")
@@ -139,10 +176,12 @@ class Server:
                         continue
 
                     elif request.lower() == "/help":
+                        # Envia mensagem de ajuda
                         self.send_message(client_socket, self.help(), "info")
                         continue
                     
                     elif req.lower().startswith("/cpu") or req.lower().startswith("/mem"):
+                        # Inicia monitoramento de CPU ou Memória
                         is_cpu = req.lower().startswith("/cpu")
                         monitor_type = "CPU" if is_cpu else "Memory"
                         target_func = self.cpu if is_cpu else self.mem
@@ -153,6 +192,7 @@ class Server:
                             self.send_message(client_socket, e, "error")
                             continue
 
+                        # Cria e inicia thread de monitoramento
                         stop_event = threading.Event()
                         thread_args = (client_socket, timer, mode)
                         thread = self.create_thread(
@@ -161,6 +201,7 @@ class Server:
                             stop_event=stop_event
                         )
 
+                        # Registra o monitoramento no dicionário do cliente
                         with self.lock:
                             client_data = self._clients[client_id]
                             task_id = f"{client_data['monitors_count']}"
@@ -177,6 +218,7 @@ class Server:
                         self.send_message(client_socket, f"{monitor_type} monitoring started with ID: {task_id}", "success")
                         
                     elif req.lower().startswith("/quit"):
+                        # Encerra monitoramento específico
                         try:
                             task_id_to_quit = req.split(" ")[1]
                         except IndexError:
@@ -186,6 +228,7 @@ class Server:
                         with self.lock:
                             monitor_to_quit = self._clients.get(client_id, {}).get("monitor", {}).get(task_id_to_quit)
                             if monitor_to_quit:
+                                # Sinaliza para a thread parar
                                 monitor_to_quit["stop_event"].set()
                                 del self._clients[client_id]["monitor"][task_id_to_quit]
                                 self.send_message(client_socket, f"Stopped monitoring ({task_id_to_quit}) for {client_id}", "success")
@@ -194,6 +237,7 @@ class Server:
                                 client_socket.send(f"Error: Monitor ID '{task_id_to_quit}' not found.".encode("utf-8"))
 
                     else:
+                        # Comando desconhecido
                         self.send_message(client_socket, "Unknown command. Use /help to see available commands.", "error")
                         continue
 
@@ -201,10 +245,12 @@ class Server:
                     print(f"{Colors.FAIL}Error handling client {client_address}: {Colors.OKBLUE}{e}{Colors.ENDC}")
                     break
         finally:
+            # Limpeza de recursos ao encerrar o atendimento ao cliente
             print(f"{Colors.OKBLUE}Cleaning up thread and memory for {client_id}{Colors.ENDC}")
             with self.lock:
                 if client_id in self._clients:
                     for task_id, monitor_info in self._clients[client_id]["monitor"].items():
+                        # Sinaliza para todas as threads de monitoramento pararem
                         monitor_info["stop_event"].set()
                         print(f"Stop signal for {task_id} from client {client_id}")
                     del self._clients[client_id]
@@ -213,6 +259,17 @@ class Server:
         print(f"Connection to {client_address} closed")
 
     def mem(self, client_socket, seconds, mode, stop_event):
+        """
+        Função de monitoramento de memória. Envia informações periodicamente ao cliente.
+        :param client_socket: O socket do cliente.
+        :type client_socket: socket.socket
+        :param seconds: Intervalo de tempo entre as verificações.
+        :type seconds: int
+        :param mode: Modo de operação (0 = básico, 1 = avançado).
+        :type mode: int
+        :param stop_event: Evento para sinalizar a parada da thread.
+        :type stop_event: threading.Event
+        """
         while not stop_event.is_set():
             mem = psutil.virtual_memory()
             swap = psutil.swap_memory()
@@ -239,6 +296,17 @@ class Server:
             time.sleep(seconds)
 
     def cpu(self, client_socket, seconds, mode, stop_event):
+        """
+        Função de monitoramento de CPU. Envia informações periodicamente ao cliente.
+        :param client_socket: O socket do cliente.
+        :type client_socket: socket.socket
+        :param seconds: Intervalo de tempo entre as verificações.
+        :type seconds: int
+        :param mode: Modo de operação (0 = básico, 1 = avançado).
+        :type mode: int
+        :param stop_event: Evento para sinalizar a parada da thread.
+        :type stop_event: threading.Event
+        """
         while not stop_event.is_set():
             cpu_percent = psutil.cpu_percent(interval=1)
             cpu_times_per_core = psutil.cpu_times(percpu=True)
@@ -268,6 +336,9 @@ class Server:
             time.sleep(seconds)
 
     def start(self):
+        """
+        Inicia o servidor e aceita conexões de clientes.
+        """
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         host = (self.host, self.port)
