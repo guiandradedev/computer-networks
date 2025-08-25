@@ -6,6 +6,7 @@ import psutil
 from datetime import datetime
 from typing import Literal
 import json
+# from ServerManager import ServerManager
 
 class Colors:
     # Classe utilitária para cores no terminal
@@ -25,6 +26,7 @@ class Server:
     """
     def __init__(self, host='0.0.0.0', port=8000):
         # Inicializa o servidor com host, porta e variáveis de controle
+        # self._manager = ServerManager()
         self.host = host
         self.port = port
         self._clients = {}  # dicionário para armazenar informações dos clientes e suas threads/monitors ativas
