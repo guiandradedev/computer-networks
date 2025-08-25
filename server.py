@@ -6,20 +6,8 @@ import psutil
 from datetime import datetime
 from typing import Literal
 import json
-# from ServerManager import ServerManager
-
-class Colors:
-    # Classe utilitária para cores no terminal
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
+from ServerManager import ServerManager
+from Colors import Colors
 class Server:
     """
     Classe principal do servidor, responsável por gerenciar conexões, comandos e monitoramentos.
@@ -27,16 +15,14 @@ class Server:
     def __init__(self, host='0.0.0.0', port=8000):
         # Inicializa o servidor com host, porta e variáveis de controle
         # self._manager = ServerManager()
-        self.host = host
-        self.port = port
         self._clients = {}  # dicionário para armazenar informações dos clientes e suas threads/monitors ativas
-        self.connection_limits = 0
-        self.running = True
         self.lock = threading.Lock()
         self.modes = ["basic", "advanced"]
 
         self.timer = 10
         self.mode = 0
+
+        self.manager = ServerManager()
 
     def send_message(self, client_socket, message, status: Literal["info", "warning", "error", "success"]):
         """
@@ -54,7 +40,7 @@ class Server:
 
         try:
             response = json.dumps({"status": status, "message": message})
-            client_socket.send(response.encode("utf-8"))
+            self.manager.send_data(response, client_socket)
         except Exception as e:
             print(f"{Colors.FAIL}Error sending message to {client_socket.getpeername()}: {e}{Colors.ENDC}")
 
@@ -150,10 +136,11 @@ class Server:
             }
         try:
             # Loop principal de atendimento ao cliente
-            while self.running:
+            while self.manager.running:
                 try:
                     # Recebe comando do cliente
-                    request = client_socket.recv(1024).decode("utf-8")
+                    # request = client_socket.recv(1024).decode("utf-8")
+                    request = self.manager.receive_data(client_socket).decode('utf-8')
                     # Caso não haja requisição, encerra a conexão
                     if not request:
                         # Se não houver comando, encerra a conexão
@@ -165,7 +152,7 @@ class Server:
                     # Comandos fixos sem parâmetros
                     if request.lower() == "/exit":
                         # Encerra a conexão com o cliente
-                        client_socket.send("Connection ended".encode("utf-8"))
+                        self.send_message(client_socket=client_socket, message="Connection ended", status="success")
                         break
 
                     elif request.lower() == "/monitors":
@@ -236,7 +223,7 @@ class Server:
                                 self.send_message(client_socket, f"Stopped monitoring ({task_id_to_quit}) for {client_id}", "success")
                                 print(f"Stopped monitoring ({task_id_to_quit}) for {client_id}")
                             else:
-                                client_socket.send(f"Error: Monitor ID '{task_id_to_quit}' not found.".encode("utf-8"))
+                                self.send_message(message=f"Monitor ID '{task_id_to_quit}' not found.", client_socket=client_socket, status="error")
 
                     else:
                         # Comando desconhecido
@@ -341,25 +328,7 @@ class Server:
         """
         Inicia o servidor e aceita conexões de clientes.
         """
-        self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        host = (self.host, self.port)
-        self._server.bind(host)
-        self._server.listen(self.connection_limits)
-        print("Server started")
-        print(f"Listening on {host[0]}:{host[1]}...")
-
-        while self.running:
-            try:
-                client_socket, client_address = self._server.accept()
-                thread = threading.Thread(target=self.handle_client, args=(client_socket, client_address))
-                thread.start()
-            except Exception as e:
-                if self.running:
-                    print(f"Error: {e}")
-        
-        self._server.close()
-        print("Server stopped")
+        self.manager.start(target_function=self.handle_client)
 
 if __name__ == '__main__': 
     server = Server()

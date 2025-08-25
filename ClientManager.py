@@ -15,4 +15,4 @@ class ClientManager(ConnectionManager):
             print(f"Failed to connect: {e}")
             self.running = False
         finally:
-            return True
+            return self.running

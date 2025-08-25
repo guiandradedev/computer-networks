@@ -25,7 +25,7 @@ class ServerManager(ConnectionManager):
         print("Server started")
         print(f"Listening on {host[0]}:{host[1]}...")
 
-        self.accept_connections(target_function, args)
+        self._accept_connections(target_function, args)
 
         self.socket.close()
         print("Server stopped")
@@ -34,8 +34,9 @@ class ServerManager(ConnectionManager):
         while self.running:
             try:
                 client_socket, client_address = self.socket.accept()
-                args = (client_socket, client_address,) + args
-                thread = threading.Thread(target=target_function, args=args)
+                new_args = (client_socket, client_address,) + args
+                print(args)
+                thread = threading.Thread(target=target_function, args=new_args)
                 thread.start()
             except Exception as e:
                 if self.running:
