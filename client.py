@@ -3,29 +3,37 @@ import threading
 import sys
 import os
 import json
-from colors import Colors
+from Colors import Colors
 from ClientManager import ClientManager
+import time
 
 class Client:
     def __init__(self,host='127.0.0.1', port=8000):
         self.connection = ClientManager(host,port)
         self._stop_event = threading.Event()
         self._receiver_thread = None
-        self.lock = threading.Lock()
+        self._connection_lock = threading.Lock()
+
+
 
     def start(self):
         self.connection.connect()
         if not self.connection.running:
             return
+        
+        self._stop_event.clear() 
 
-        self._stop_event = threading.Event()
+        # self._stop_event = threading.Event()
         self._receiver_thread = threading.Thread(target=self.handle_response)
         self._receiver_thread.start()
         self.run_client()
+        print("pos run")
 
     def send_message(self, message):
-        self.connection.send_data(message)
-
+        with self._connection_lock:
+            if self.connection.running:
+                return self.connection.send_data(message)
+        return False
     # def close_connection(self):
     #     print("Connection closed")
     #     # Finaliza conexão em caso de erro ou disconnect
@@ -39,50 +47,96 @@ class Client:
     #         except:
     #             pass
         
-    #     if self._receiver_thread and self._receiver_thread.is_alive():
-    #         self._receiver_thread.join(timeout=2)
+    #     # if self._receiver_thread and self._receiver_thread.is_alive():
+    #     #     self._receiver_thread.join(timeout=2)
 
-    #     try:
-    #         sys.exit(130)
-    #     except SystemExit:
-    #         os._exit(130)
+    #     # try:
+    #     #     sys.exit(130)
+    #     # except SystemExit:
+    #     #     os._exit(130)
 
     def close_connection(self):
         """Fecha a conexão de forma segura"""
         print("Connection closed")
+        print("aaaa1")
+        
+        with self._connection_lock:
+            print(self._connection_lock, self.connection.running)
+            if not self.connection.running:
+                return
+        print("aaaa2")
         
         # Sinaliza parada
         self._stop_event.set()
+        self.connection.running = False
+
+        time.sleep(0.1)
+        print("aaaa")
         
-        # Fecha a conexão
-        if self.connection:
+        if self.connection.socket:
             try:
                 self.connection.close()
             except:
+                print("erro")
                 pass
-            self.connection.running = False
-            
+        print("asdsa")
 
-    def cleanup(self):
-        """Método separado para limpeza final"""
-        # ✅ Só faz join da thread principal
-        if (self._receiver_thread and 
-            self._receiver_thread.is_alive() and 
-            threading.current_thread() != self._receiver_thread):
+        if self._receiver_thread and self._receiver_thread.is_alive():
+            print("d")
             self._receiver_thread.join(timeout=2)
+        
+        print("a")
+        # Fecha a conexão
+        with self._connection_lock:
+            if self.connection:
+                try:
+                    self.connection.close()
+                except:
+                    pass
+                self.connection.running = False
+        print("c")
 
-        try:
-            sys.exit(130)
-        except SystemExit:
-            os._exit(130)
+
+    # def close_connection(self):
+    #     """Fecha a conexão de forma segura"""
+    #     print("Connection closed")
+        
+    #     # ✅ CORREÇÃO: Sinaliza parada PRIMEIRO
+    #     self._stop_event.set()
+        
+    #     # ✅ CORREÇÃO: Aguarda um pouco para thread processar sinal
+    #     time.sleep(0.1)
+        
+    #     # ✅ CORREÇÃO: Só faz join se não for a própria thread
+    #     current_thread = threading.current_thread()
+    #     if (self._receiver_thread and 
+    #         self._receiver_thread.is_alive() and 
+    #         self._receiver_thread != current_thread):
+    #         self._receiver_thread.join(timeout=2)
+        
+    #     # ✅ CORREÇÃO: Fecha conexão com lock
+    #     with self._connection_lock:
+    #         if self.connection:
+    #             try:
+    #                 self.connection.close()
+    #             except:
+    #                 pass
 
     def handle_response(self):
-        while not self._stop_event.is_set() and self.connection.running:
+        while not self._stop_event.is_set() or self.connection.running:
             try:
-                response = self.connection.receive_data()
+                if self._stop_event.is_set():
+                    break
+
+                with self._connection_lock:
+                    if not self.connection.running:
+                        break
+                    response = self.connection.receive_data()
+
                 if not response:
                     print("Server closed the connection.")
                     # self.close_connection()
+                    self._stop_event.set()
                     break
                 response = response.decode("utf-8")
                 try:
@@ -108,7 +162,7 @@ class Client:
             except Exception as e:
                 print(f"Error receiving data: {e}")
                 break
-
+        self.close_connection()
 
     def run_client(self):
         try:
@@ -117,24 +171,26 @@ class Client:
                 
                 if msg == "":
                     continue
+
+                if not self.connection.running or self._stop_event.is_set():
+                    break
                 
-                self.send_message(msg)
-                    
                 if msg.lower() == "/exit":
                     break
+
+                self.send_message(msg)
 
         except KeyboardInterrupt:
             print("interrupted by user")
         finally:
+            # self._stop_event.set()
+            # self.connection.close()
             self.close_connection()
-            self.cleanup()  
-        # finally:
-        #     self._stop_event.set()
-        #     self.connection.close()
+            # self._receiver_thread.join()
         
         # self._receiver_thread.join()
         print("Connection to server closed")
-
+        
 if __name__ == '__main__': 
     client = Client()
     try:

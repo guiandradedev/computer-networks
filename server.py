@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Literal
 import json
 from ServerManager import ServerManager
-from colors import Colors
+from Colors import Colors
 class Server:
     """
     Classe principal do servidor, responsável por gerenciar conexões, comandos e monitoramentos.

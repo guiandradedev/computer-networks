@@ -1,6 +1,6 @@
 import socket
 from abc import ABC, abstractmethod
-from colors import Colors
+from Colors import Colors
 
 class ConnectionManager(ABC):
     def __init__(self, host='127.0.0.1', port=8000):
@@ -39,5 +39,6 @@ class ConnectionManager(ABC):
         self.running = False
         try:
             self.socket.close()
+            self.socket.shutdown(socket.SHUT_RDWR)
         except:
             pass
