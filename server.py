@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Literal
 import json
 from ServerManager import ServerManager
-from Colors import Colors
+from colors import Colors
 class Server:
     """
     Classe principal do servidor, responsável por gerenciar conexões, comandos e monitoramentos.
@@ -140,11 +140,11 @@ class Server:
                 try:
                     # Recebe comando do cliente
                     # request = client_socket.recv(1024).decode("utf-8")
-                    request = self.manager.receive_data(client_socket).decode('utf-8')
-                    # Caso não haja requisição, encerra a conexão
-                    if not request:
+                    data = self.manager.receive_data(client_socket)
+                    if not data:
                         # Se não houver comando, encerra a conexão
                         break
+                    request = data.decode('utf-8')
 
                     # Separa a requisição por espaços
                     req = request.strip(" ")  # Remove espaços extras
@@ -177,6 +177,7 @@ class Server:
 
                         try:
                             timer, mode = self._validate_and_format_request(req)
+                            print(mode)
                         except ValueError as e:
                             self.send_message(client_socket, e, "error")
                             continue
@@ -336,4 +337,4 @@ if __name__ == '__main__':
         server.start()
     except KeyboardInterrupt:
         print('\nInterrupted')
-        server.running = False
+        server.manager.running = False

@@ -1,6 +1,6 @@
 import socket
 from abc import ABC, abstractmethod
-from Colors import Colors
+from colors import Colors
 
 class ConnectionManager(ABC):
     def __init__(self, host='127.0.0.1', port=8000):

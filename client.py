@@ -3,7 +3,7 @@ import threading
 import sys
 import os
 import json
-from Colors import Colors
+from colors import Colors
 from ClientManager import ClientManager
 
 class Client:
@@ -53,8 +53,6 @@ class Client:
         
         # Sinaliza parada
         self._stop_event.set()
-
-        print("erro1")
         
         # Fecha a conexão
         if self.connection:
@@ -62,8 +60,8 @@ class Client:
                 self.connection.close()
             except:
                 pass
-
-        
+            self.connection.running = False
+            
 
     def cleanup(self):
         """Método separado para limpeza final"""
