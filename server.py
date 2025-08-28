@@ -146,6 +146,8 @@ class Server:
                         break
                     request = data.decode('utf-8')
 
+                    print(request)
+
                     # Separa a requisição por espaços
                     req = request.strip(" ")  # Remove espaços extras
 

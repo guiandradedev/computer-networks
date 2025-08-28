@@ -30,10 +30,22 @@ class Client:
         print("pos run")
 
     def send_message(self, message):
-        with self._connection_lock:
-            if self.connection.running:
-                return self.connection.send_data(message)
+        if self.connection.running:
+            try:
+                self.connection.send_data(message)
+            except Exception as e:
+                print(f"Error sending message: {e}")
         return False
+        # with self._connection_lock:
+        #     try:
+        #         if self.connection.running:
+        #             self.connection.send_data(message)
+        #             return True
+        #     except Exception as e:
+        #         print(f"Error sending message: {e}")
+        # return False
+    
+    
     # def close_connection(self):
     #     print("Connection closed")
     #     # Finaliza conexão em caso de erro ou disconnect
@@ -60,41 +72,67 @@ class Client:
         print("Connection closed")
         print("aaaa1")
         
+        print(self._connection_lock.locked())
         with self._connection_lock:
             print(self._connection_lock, self.connection.running)
             if not self.connection.running:
+                print("apareceu")
                 return
-        print("aaaa2")
-        
-        # Sinaliza parada
-        self._stop_event.set()
-        self.connection.running = False
 
-        time.sleep(0.1)
-        print("aaaa")
-        
-        if self.connection.socket:
+            print("adasdas")
+            
+            self._stop_event.set()
+            
+            self.connection.running = False
             try:
-                self.connection.close()
-            except:
-                print("erro")
+                self.connection.shutdown()
+            except Exception as e:
                 pass
-        print("asdsa")
 
-        if self._receiver_thread and self._receiver_thread.is_alive():
-            print("d")
-            self._receiver_thread.join(timeout=2)
+            # if self._receiver_thread and self._receiver_thread.is_alive():
+            #     print("d")
+            #     self._receiver_thread.join(timeout=2)
+            
+            try:
+                print("antes")
+                self.connection.close()
+                print("depois")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
+
+            print("Connection closed successfully")
+
+        # print("aaaa2")
         
-        print("a")
-        # Fecha a conexão
-        with self._connection_lock:
-            if self.connection:
-                try:
-                    self.connection.close()
-                except:
-                    pass
-                self.connection.running = False
-        print("c")
+        # # Sinaliza parada
+        # self._stop_event.set()
+        # self.connection.running = False
+
+        # time.sleep(0.1)
+        # print("aaaa")
+        
+        # if self.connection.socket:
+        #     try:
+        #         self.connection.close()
+        #     except:
+        #         print("erro")
+        #         pass
+        # print("asdsa")
+
+        # if self._receiver_thread and self._receiver_thread.is_alive():
+        #     print("d")
+        #     self._receiver_thread.join(timeout=2)
+        
+        # print("a")
+        # # Fecha a conexão
+        # with self._connection_lock:
+        #     if self.connection:
+        #         try:
+        #             self.connection.close()
+        #         except:
+        #             pass
+        #         self.connection.running = False
+        # print("c")
 
 
     # def close_connection(self):
@@ -128,10 +166,10 @@ class Client:
                 if self._stop_event.is_set():
                     break
 
-                with self._connection_lock:
-                    if not self.connection.running:
-                        break
-                    response = self.connection.receive_data()
+                # with self._connection_lock:
+                if not self.connection.running:
+                    break
+                response = self.connection.receive_data() # fica barrado
 
                 if not response:
                     print("Server closed the connection.")
@@ -162,7 +200,7 @@ class Client:
             except Exception as e:
                 print(f"Error receiving data: {e}")
                 break
-        self.close_connection()
+        # self.close_connection()
 
     def run_client(self):
         try:

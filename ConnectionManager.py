@@ -39,6 +39,12 @@ class ConnectionManager(ABC):
         self.running = False
         try:
             self.socket.close()
-            self.socket.shutdown(socket.SHUT_RDWR)
         except:
             pass
+
+    def shutdown(self):
+        self.running = False
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except Exception as e:
+            Colors.error(f"Error shutting down connection: {e}")
