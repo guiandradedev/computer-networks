@@ -15,8 +15,24 @@ class Colors:
 
     @staticmethod
     def ok(message):
+        print(f"{Colors.OKCYAN}{message}{Colors.ENDC}")
+
+    @staticmethod
+    def success(message):
         print(f"{Colors.OKGREEN}{message}{Colors.ENDC}")
 
     @staticmethod
     def warning(message):
         print(f"{Colors.WARNING}{message}{Colors.ENDC}")
+
+    @staticmethod
+    def bold(message):
+        print(f"{Colors.BOLD}{message}{Colors.ENDC}")
+
+    @staticmethod
+    def underline(message):
+        print(f"{Colors.UNDERLINE}{message}{Colors.ENDC}")
+
+    @staticmethod
+    def header(message):
+        print(f"{Colors.HEADER}{message}{Colors.ENDC}")

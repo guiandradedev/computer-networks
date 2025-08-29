@@ -10,6 +10,13 @@ class ConnectionManager(ABC):
         self.running = False
 
     def send_data(self, message, target_socket=None):
+        """
+        Envia dados através do socket especificado ou do socket padrão.
+        
+        :param message: Mensagem a ser enviada.
+        :param target_socket: Socket específico para enviar a mensagem. Se None, usa o socket padrão.
+        :return: True se a mensagem foi enviada com sucesso, False caso contrário.
+        """
         socket_to_use = target_socket or self.socket
         # Pra definir se vai ser como um socket do servidor ou passado como parametro
         
@@ -25,6 +32,12 @@ class ConnectionManager(ABC):
             return False
     
     def receive_data(self, target_socket=None):
+        """
+        Recebe dados através do socket especificado ou do socket padrão.
+        
+        :param target_socket: Socket específico para receber a mensagem. Se None, usa o socket padrão.
+        :return: Dados recebidos ou None em caso de erro.
+        """
         socket_to_use = target_socket or self.socket
         if not self.running and not target_socket:
             Colors.error("Not connected to server")
@@ -36,6 +49,9 @@ class ConnectionManager(ABC):
             return None
 
     def close(self):
+        """
+        Fecha a conexão do socket.
+        """
         self.running = False
         try:
             self.socket.close()
@@ -43,6 +59,9 @@ class ConnectionManager(ABC):
             pass
 
     def shutdown(self):
+        """
+        Encerra a conexão do socket de forma segura.
+        """
         self.running = False
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
