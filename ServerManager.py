@@ -9,11 +9,15 @@ class ServerManager(ConnectionManager):
     """ 
     Classe que gerencia o servidor, aceitando conexões de clientes e delegando o atendimento a threads.
     """
-    def __init__(self, host='0.0.0.0', port=8000, connection_limits=5):
+    def __init__(self, host='0.0.0.0', port=8000):
 
         super().__init__(host=host, port=port)
+        # self.connection_limits = connection_limits
+
+    def set_connection_limits(self, connection_limits):
+        if connection_limits <= 0:
+            raise ValueError("Connection Limits must be greather than 0")
         self.connection_limits = connection_limits
-        self.connection_semaphore = threading.Semaphore(connection_limits)
 
     def start(self, target_function, args=()):
         """
@@ -26,6 +30,12 @@ class ServerManager(ConnectionManager):
 
         # Instância o server com os protocolos de rede
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        if not self.connection_limits:
+            Colors.error("Connection Limits must exists")
+            return
+        
+        self.connection_semaphore = threading.Semaphore(self.connection_limits)
 
         # Define a execução
         host = (self.host, self.port)

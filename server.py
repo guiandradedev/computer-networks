@@ -20,7 +20,7 @@ class Server:
         self.timer = 10
         self.mode = 0
 
-        self.manager = ServerManager(connection_limits=1)
+        self.manager = ServerManager()
 
     def send_message(self, client_socket, message, status: Literal["info", "warning", "error", "success"]):
         """
@@ -336,6 +336,17 @@ class Server:
         """
         Inicia o servidor e aceita conexões de clientes.
         """
+
+        Colors.header("System Monitor")
+        valid_connection_limits = False
+        while valid_connection_limits == False:
+            try:
+                connection_limits = int(input("How many connections this server will accept?"))
+                self.manager.set_connection_limits(connection_limits)
+                valid_connection_limits = True
+            except ValueError as e:
+                Colors.error(e)
+
         self.manager.start(target_function=self.handle_client)
 
 if __name__ == '__main__': 
