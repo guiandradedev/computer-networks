@@ -341,13 +341,34 @@ class Server:
         valid_connection_limits = False
         while valid_connection_limits == False:
             try:
-                connection_limits = int(input("How many connections this server will accept?"))
+                connection_limits = int(input("How many connections this server will accept? "))
                 self.manager.set_connection_limits(connection_limits)
                 valid_connection_limits = True
             except ValueError as e:
                 Colors.error(e)
-
+            
         self.manager.start(target_function=self.handle_client)
+        
+        self.handle_server()
+
+    def handle_server(self):
+        """
+        Lê comandos do terminal para controle do servidor.
+        Comandos:
+        - exit: encerra o servidor
+        - threads: lista as threads ativas
+        """
+        while self.manager.running:
+            command = input("Enter command: ")
+            if command.strip().lower() == "exit":
+                self.manager.running = False
+                self.manager.shutdown()
+                self.manager.close()
+                Colors.ok("Servidor encerrando...")
+            elif command.strip().lower() == "threads":
+                self.manager.list_active_threads()
+            else:
+                Colors.error("Unknown command")
 
 if __name__ == '__main__': 
     server = Server()

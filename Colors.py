@@ -36,3 +36,7 @@ class Colors:
     @staticmethod
     def header(message):
         print(f"{Colors.HEADER}{message}{Colors.ENDC}")
+
+    @staticmethod
+    def info(message):
+        print(f"{Colors.OKCYAN}{message}{Colors.ENDC}")

@@ -10,7 +10,6 @@ class ServerManager(ConnectionManager):
     Classe que gerencia o servidor, aceitando conexões de clientes e delegando o atendimento a threads.
     """
     def __init__(self, host='0.0.0.0', port=8000):
-
         super().__init__(host=host, port=port)
         # self.connection_limits = connection_limits
 
@@ -45,11 +44,10 @@ class ServerManager(ConnectionManager):
         self.running = True
         print("Server started")
         print(f"Listening on {host[0]}:{host[1]}...")
-
-        self._accept_connections(target_function, args)
-
-        self.socket.close()
-        print("Server stopped")
+        
+        thread = threading.Thread(target=self._accept_connections, args=(target_function, args))
+        thread.daemon = True
+        thread.start()
 
     def _accept_connections(self, target_function, args):
         """
@@ -59,7 +57,7 @@ class ServerManager(ConnectionManager):
         :param args: Argumentos adicionais para a função alvo.
         :return: None
         """
-        while self.running:
+        while self.running == True:
             try:
                 client_socket, client_address = self.socket.accept()
 
@@ -84,6 +82,14 @@ class ServerManager(ConnectionManager):
 
 
     def client_wrapper(self, target_function, sock, addr, *args):
+        """ 
+        Encapsula a execução da função alvo em uma nova thread.
+
+        :param target_function: Função alvo a ser executada.
+        :param sock: Socket do cliente.
+        :param addr: Endereço do cliente.
+        :param args: Argumentos adicionais para a função alvo.
+        """
         try:
             target_function(sock, addr, *args)
         except Exception as e:
@@ -96,3 +102,18 @@ class ServerManager(ConnectionManager):
                 pass
 
             sock.close()
+
+    def list_active_threads(self):
+        """
+        Lista as threads ativas no servidor.
+        """
+        active_connections = []
+        for thread in threading.enumerate():
+            if thread.name.startswith("Thread-"):
+                active_connections.append(thread.name)
+        if active_connections:
+            Colors.info("Active connections:")
+            for conn in active_connections:
+                Colors.info(f" - {conn}")
+        else:
+            Colors.info("No active connections.")
