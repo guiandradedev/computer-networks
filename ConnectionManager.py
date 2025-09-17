@@ -56,7 +56,6 @@ class ConnectionManager(ABC):
             Colors.error("Connection ended by remote host.")
             return None
         except (ConnectionResetError, BrokenPipeError, OSError) as e:
-            # Silencia o erro se for WinError 10038 (socket já fechado)
             if hasattr(e, 'winerror') and e.winerror == 10038:
                 return None
             Colors.error(f"Connection ended by remote host.")

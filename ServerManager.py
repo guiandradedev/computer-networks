@@ -11,7 +11,6 @@ class ServerManager(ConnectionManager):
     """
     def __init__(self, host='0.0.0.0', port=8000):
         super().__init__(host=host, port=port)
-        # self.connection_limits = connection_limits
 
     def set_connection_limits(self, connection_limits):
         if connection_limits <= 0:
@@ -27,7 +26,7 @@ class ServerManager(ConnectionManager):
         :return: None
         """
 
-        # Instância o server com os protocolos de rede
+        # Instancia o server com os protocolos de rede
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         if not self.connection_limits:

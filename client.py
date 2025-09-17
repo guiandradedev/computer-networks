@@ -31,8 +31,8 @@ class Client:
         self._receiver_thread = threading.Thread(target=self.handle_response)
         self._receiver_thread.start()
 
-        time.sleep(0.1)
-        # Delay de 10ms para que a mensagem inicial de ajuda não seja cortada pelo client
+        time.sleep(0.2)
+        # Delay de 20ms para que a mensagem inicial de ajuda não seja cortada pelo client
         self.run_client()
         
 
@@ -126,17 +126,18 @@ class Client:
                     print(f"Recebido: {response}")
 
             except ConnectionResetError:
-                Colors.error("Conexão encerrada pelo servidor (reset).")
-                self._stop_event.set() # Sinaliza a thread principal para parar
+                Colors.error("Connection Interrupted.")
+                self._stop_event.set()
                 return
             
             except KeyboardInterrupt:
-                Colors.ok("Connection interrupted by user")
+                Colors.ok("Connection Interrupted.")
+                self._stop_event.set()
                 return
             
             except Exception as e:
                 Colors.error(f"Server > Error receiving data: {e}")
-                self._stop_event.set() # Sinaliza a thread principal para parar
+                self._stop_event.set()
                 return
 
 

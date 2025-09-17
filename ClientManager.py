@@ -17,13 +17,13 @@ class ClientManager(ConnectionManager):
             self.running = True
             print(f"Connected to {self.host}:{self.port}")
         except ConnectionRefusedError:
-            Colors.error("Não foi possível conectar: o servidor recusou a conexão.")
+            Colors.error("Connection refused by server")
             return False
         except TimeoutError:
-            Colors.error("Tempo de conexão esgotado.")
+            Colors.error("Connection Timeout")
             return False
         except OSError as e:
-            Colors.error(f"Erro de conexão: {e}")
+            Colors.error(f"Connection Error: {e}")
             return False
         except Exception as e:
             Colors.error(f"Failed to connect: {e}")
