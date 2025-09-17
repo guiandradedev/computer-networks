@@ -40,7 +40,7 @@ class Server:
             response = json.dumps({"status": status, "message": message})
             self.manager.send_data(response, client_socket)
         except Exception as e:
-            Colors.error(f"Error sending message to {client_socket.getpeername()}: {e}")
+            Colors.error(f"Error sending message to {client_socket.getpeername()}: {str(e)}")
 
     def create_thread(self, target, args, stop_event):
         """
@@ -184,7 +184,7 @@ class Server:
                             timer, mode = self._validate_and_format_request(req)
                             
                         except ValueError as e:
-                            self.send_message(client_socket, e, "error")
+                            self.send_message(client_socket, str(e), "error")
                             continue
 
                         # Cria e inicia thread de monitoramento
@@ -237,7 +237,7 @@ class Server:
                         continue
 
                 except Exception as e:
-                    Colors.error(f"Error handling client {client_address}: {Colors.OKBLUE}{e}")
+                    Colors.error(f"Error handling client {client_address}: {Colors.OKBLUE}{str(e)}")
                     break
         finally:
             # Limpeza de recursos ao encerrar o atendimento ao cliente

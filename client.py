@@ -159,7 +159,7 @@ class Client:
                     self.send_message(msg)
 
             except ConnectionResetError:
-                Colors.error("Conexão encerrada pelo servidor (reset).")
+                Colors.error("Connection ended by server (reset).")
 
             except KeyboardInterrupt:
                 Colors.ok("Connection interrupted by user")
