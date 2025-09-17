@@ -96,12 +96,14 @@ class Client:
 
                 if not self.connection.running:
                     break
-                response = self.connection.receive_data() # fica barrado
+
+                response = self.connection.receive_data()
 
                 if not response:
                     print("Server closed the connection.")
                     self.connection.running = False
                     break
+
                 response = response.decode("utf-8")
                 try:
                     response_json = json.loads(response)
@@ -121,39 +123,50 @@ class Client:
                     else:
                         Colors.underline(f"Server > {response_json}")
                 except json.JSONDecodeError:
-                    # Caso não seja JSON, imprime a mensagem bruta
                     Colors.underline(f"Server > {response}")
                     print(f"Recebido: {response}")
+
+            except ConnectionResetError:
+                Colors.error("Conexão encerrada pelo servidor (reset).")
+                self._stop_event.set() # Sinaliza a thread principal para parar
+                break
+            
             except Exception as e:
-                Colors.error("Server > Error receiving data: {e}")
+                Colors.error(f"Server > Error receiving data: {e}")
+                self._stop_event.set() # Sinaliza a thread principal para parar
                 break
 
 
+
     def run_client(self):
-        """
-        Loop principal do cliente para enviar mensagens ao servidor.
-        """
-        try:
-            while self.connection.running:
-                msg = input("Request > ")
-                
-                if msg == "":
-                    continue
+            """
+            Loop principal do cliente para enviar mensagens ao servidor.
+            """
+            try:
+                while not self._stop_event.is_set():
+                    msg = input("Request > ")
+                    
+                    if msg == "":
+                        continue
 
-                if not self.connection.running or self._stop_event.is_set():
-                    break
-                
-                if msg.lower() == "/exit":
-                    break
+                    if self._stop_event.is_set():
+                        break
+                    
+                    if msg.lower() == "/exit":
+                        break
 
-                self.send_message(msg)
+                    self.send_message(msg)
 
-        except KeyboardInterrupt:
-            Colors.ok("Connection interrupted by user")
-        finally:
-            self.close_connection()
+            except ConnectionResetError:
+                Colors.error("Conexão encerrada pelo servidor (reset).")
 
-        Colors.success("Connection to server closed")
+            except KeyboardInterrupt:
+                Colors.ok("Connection interrupted by user")
+
+            finally:
+                self.close_connection()
+
+            Colors.success("Connection to server closed")
 
 
 if __name__ == '__main__': 

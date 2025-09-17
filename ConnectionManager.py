@@ -44,6 +44,9 @@ class ConnectionManager(ABC):
             return False
         try:
             return socket_to_use.recv(4096)
+        except ConnectionResetError:
+            Colors.error("A conexão foi encerrada pelo host remoto")
+            return None
         except Exception as e:
             Colors.error(f"Error receiving data: {e}")
             return None
