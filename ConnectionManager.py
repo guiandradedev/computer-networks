@@ -27,6 +27,14 @@ class ConnectionManager(ABC):
         try:
             socket_to_use.send(message.encode("utf-8"))
             return True
+        except (BrokenPipeError, ConnectionResetError, OSError) as e:
+            Colors.error(f"Error sending message: connection closed")
+            try:
+                socket_to_use.close()
+                print("close")
+            except Exception:
+                pass
+            return False
         except Exception as e:
             Colors.error(f"Error sending message: {e}")
             return False

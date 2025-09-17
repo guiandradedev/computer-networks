@@ -72,18 +72,19 @@ class Client:
                 return
 
             self._stop_event.set()
-            
             self.connection.running = False
             try:
                 self.connection.shutdown()
-            except Exception as e:
+            except Exception:
                 pass
 
             try:
                 self.connection.close()
             except Exception as e:
-                Colors.error("Server > Error closing connection: {e}")
+                Colors.error(f"Server > Error closing connection: {e}")
 
+        if self._receiver_thread and self._receiver_thread.is_alive():
+            self._receiver_thread.join(timeout=1)
 
     def handle_response(self):
         """
@@ -103,7 +104,7 @@ class Client:
                     print("Server closed the connection.")
                     self.connection.running = False
                     self._stop_event.set()
-                    break
+                    return
 
                 response = response.decode("utf-8")
                 try:
@@ -130,12 +131,12 @@ class Client:
             except ConnectionResetError:
                 Colors.error("Conexão encerrada pelo servidor (reset).")
                 self._stop_event.set() # Sinaliza a thread principal para parar
-                break
+                return
             
             except Exception as e:
                 Colors.error(f"Server > Error receiving data: {e}")
                 self._stop_event.set() # Sinaliza a thread principal para parar
-                break
+                return
 
 
 

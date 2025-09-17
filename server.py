@@ -364,7 +364,7 @@ class Server:
                 self.manager.running = False
                 self.manager.shutdown()
                 self.manager.close()
-                Colors.ok("Servidor encerrando...")
+                Colors.ok("Server ending...")
             elif command.strip().lower() == "threads":
                 self.manager.list_active_threads()
             else:
