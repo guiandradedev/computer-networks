@@ -90,12 +90,9 @@ class Client:
         """
         Lida com as respostas recebidas do servidor.
         """
-        while not self._stop_event.is_set() or self.connection.running:
+        while not self._stop_event.is_set() and self.connection.running:
             try:
-                if self._stop_event.is_set():
-                    break
-
-                if not self.connection.running:
+                if self._stop_event.is_set() or not self.connection.running:
                     break
 
                 response = self.connection.receive_data()
@@ -131,6 +128,10 @@ class Client:
             except ConnectionResetError:
                 Colors.error("Conexão encerrada pelo servidor (reset).")
                 self._stop_event.set() # Sinaliza a thread principal para parar
+                return
+            
+            except KeyboardInterrupt:
+                Colors.ok("Connection interrupted by user")
                 return
             
             except Exception as e:

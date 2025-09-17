@@ -28,7 +28,7 @@ class ConnectionManager(ABC):
             socket_to_use.send(message.encode("utf-8"))
             return True
         except (BrokenPipeError, ConnectionResetError, OSError) as e:
-            Colors.error(f"Error sending message: connection closed")
+            Colors.error(f"Error sending message: Connection is closed.")
             try:
                 socket_to_use.close()
                 print("close")
@@ -54,6 +54,12 @@ class ConnectionManager(ABC):
             return socket_to_use.recv(4096)
         except ConnectionResetError:
             Colors.error("Connection ended by remote host.")
+            return None
+        except (ConnectionResetError, BrokenPipeError, OSError) as e:
+            # Silencia o erro se for WinError 10038 (socket já fechado)
+            if hasattr(e, 'winerror') and e.winerror == 10038:
+                return None
+            Colors.error(f"Connection ended by remote host.")
             return None
         except Exception as e:
             Colors.error(f"Error receiving data: {e}")
