@@ -102,6 +102,7 @@ class Client:
                 if not response:
                     print("Server closed the connection.")
                     self.connection.running = False
+                    self._stop_event.set()
                     break
 
                 response = response.decode("utf-8")
